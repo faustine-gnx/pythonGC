@@ -21,7 +21,22 @@ def bivariateLinearCausalityTE(signals, tau=1, n_lags=5, verbose=False):
     signals = detrend(signals)  # removes the linear trend from the data: makes the data stationary
     signals = normalisa(signals) # Matlab normalisa: mean=0, std=1 for each ROI
 
-    for col in signal.T:
+    for x in signal.T: # for each column (each roi)
+        x_embedded = embed(x, n_lags+1, tau)
+        x_tau = x_embedded[:, :-1]  # past of signal x (embedded)
+
+        for y in signal.T:
+            if x != y:
+                y_embedded = embed(y, n_lags+1, tau)
+                y_t = y_embedded[:, -1]  # current value of signal y (embedded)
+                y_tau = y_embedded[:, :-1]  # past of signal y (embedded)
+
+                both_past = np.det(np.cov([x_tau, y_tau]))
+                own_past_present = np.det(np.cov([y_t, y_tau]))
+                both_past_present = np.det(np.cov([y_t, y_tau, x_tau]))
+                own_past = np.det(np.cov(y_tau))
+                gc = 0.5 * np.log((own_past_present / own_past) / (both_past_present / both_past))
+
 
 
 
