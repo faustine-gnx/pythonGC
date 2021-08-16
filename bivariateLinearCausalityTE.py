@@ -11,35 +11,35 @@ def bivariateLinearCausalityTE(signals, tau=1, n_lags=5, pval=0.05, verbose=Fals
     see slide 32 of GC presentation
     Fstat ~ F(n_lags, n_timesteps - 2*n_lags)
 
-    :param signals: shape n_rois x n_timesteps (/!\ Matlab opposite
-    :param tau:
+    :param signals: shape n_rois x n_timesteps (/!\ Matlab opposite)
+    :param tau: number of lags for the embedding (keep tau=1 for GC)
     :param n_lags: number of past time steps to include in model
     :param verbose: set to True to display result and threshold
 
-    :return TE_xy: transfer entropy (GC) from roi x to roi y
+    :return GC_sig: significant values of Granger causality matrix
+    :return GC: Granger causality matrix
     :return F_stat: F statistics of the GC test
     :return threshold_F: threshold for significance.
     """
-    (n_timesteps, n_rois) = np.shape(signals)
+    (n_rois, n_timesteps) = np.shape(signals)
     n_pairs = n_rois * (n_rois-1)
     # From Fstat definition: F_gc ~ F(n_lags, n_timesteps - 2*n_lags)
     threshold_F = stats.f.ppf(1 - pval/n_pairs, n_lags, n_timesteps - 2*n_lags)  # statistical threshold
     # Bonferroni corrected 1 - pval/n_pairs instead of 1 - pval: n_pairs = number of hypotheses tested,
     # pval = significance level
 
-
-    signals = detrend(signals)  # removes the linear trend from the data: makes the data stationary
-    signals = normalisa(signals) # Matlab normalisa: mean=0, std=1 for each ROI
+    signals = signal.detrend(signals)  # removes the linear trend from each signal: makes the data stationary
+    signals = normalisa(signals)  # Matlab normalisa: mean=0, std=1 for each ROI
 
     Fstat = np.zeros((n_rois, n_rois))  # matrix of all F_xy
     GC = np.zeros((n_rois, n_rois))  # matrix of all GC_xy
     GC_sig = np.zeros((n_rois, n_rois))  # matrix of all significant GC_xy (if F_xy >= threshold_F)
 
-    for i,x in enumerate(signal.T): # for each column (each roi)
+    for i, x in enumerate(signals): # for each column (each roi)
         x_embedded = embed(x, n_lags+1, tau)
         x_tau = x_embedded[:, :-1]  # past of signal x (embedded)
 
-        for j,y in enumerate(signal.T):
+        for j, y in enumerate(signals):
             if i != j:
                 y_embedded = embed(y, n_lags+1, tau)
                 y_t = y_embedded[:, -1].reshape((len(y_t),1))   # current value of signal y (embedded)
@@ -74,13 +74,6 @@ def bivariateLinearCausalityTE(signals, tau=1, n_lags=5, pval=0.05, verbose=Fals
     return GC_sig, GC, Fstat, threshold_F
 
 
-
-
-def detrend(signals):
-    """ Removes the best straight-line fit linear trend from each column of the matrix signals. """
-    return signal.detrend(signals, axis=0)
-
-
 def embed(signal, embed_dim, tau=1):
     """ Embed data sequence signal. Creates an embedding matrix of dimension embed_dim and tau lags.
     :param signal: vector of the signal to be embedded
@@ -96,9 +89,9 @@ def embed(signal, embed_dim, tau=1):
 
 def normalisa(signals):
     """ """
-    signals_mean = np.mean(signals, axis=0)  # mean across time (i.e. per roi)
-    signals_std = np.std(signals, axis=0, ddof=1)  # std across time (i.e. per roi); ddof = 1 to have same as matlab's
-    # std function: normalized by N-1 --> get unbiased variance
+    signals_mean = np.mean(signals, axis=1).reshape(np.shape(signals)[1], 1)  # mean across time (i.e. per roi)
+    signals_std = np.std(signals, axis=1, ddof=1).reshape(np.shape(signals)[1], 1)  # std across time (i.e. per roi);
+    # ddof = 1 to have same as matlab's --> std function: normalized by N-1 --> get unbiased variance
     signals_normalized = (signals - signals_mean) / signals_std
     return signals_normalized
 
