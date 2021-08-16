@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import signal, stats
 
-def bivariateLinearCausalityTE(signals, tau=1, n_lags=5, pval=0.05, verbose=False):
+def bivariateLinearCausalityTE(signals, n_lags=5, tau=1, pval=0.05, verbose=False):
     """ Calculate the bivariate Granger causality between each pair of signals.
     cov([...]) --> symmetric square matrix (cov between each pair of elements)
     determinant of cov = generalized variance: measure of multi-dimensional scatter (scalar value) / linked to
@@ -12,8 +12,10 @@ def bivariateLinearCausalityTE(signals, tau=1, n_lags=5, pval=0.05, verbose=Fals
     Fstat ~ F(n_lags, n_timesteps - 2*n_lags)
 
     :param signals: shape n_rois x n_timesteps (/!\ Matlab opposite)
-    :param tau: number of lags for the embedding (keep tau=1 for GC)
-    :param n_lags: number of past time steps to include in model
+    :param tau: number of time steps between lags kept for the embedding
+           --> keep past values at times: [t-tau*i for i in range(n_lags)]
+           (tau=1 for GC: keep all values up to n_lags, don't skip any)
+    :param n_lags: number of past time steps to include in model (order)
     :param verbose: set to True to display result and threshold
 
     :return GC_sig: significant values of Granger causality matrix
@@ -42,7 +44,7 @@ def bivariateLinearCausalityTE(signals, tau=1, n_lags=5, pval=0.05, verbose=Fals
         for j, y in enumerate(signals):
             if i != j:
                 y_embedded = embed(y, n_lags+1, tau)
-                y_t = y_embedded[:, -1].reshape((len(y_t),1))   # current value of signal y (embedded)
+                y_t = y_embedded[:, -1].reshape((len(y_embedded), 1))   # current value of signal y (embedded)
                 y_tau = y_embedded[:, :-1]  # past of signal y (embedded)
                 xtau_ytau = np.concatenate((x_tau, y_tau), axis=1)  # both past concatenated
                 ytau_yt = np.concatenate((y_tau, y_t), axis=1)  # y's past and current value --> reduced model
@@ -89,8 +91,8 @@ def embed(signal, embed_dim, tau=1):
 
 def normalisa(signals):
     """ """
-    signals_mean = np.mean(signals, axis=1).reshape(np.shape(signals)[1], 1)  # mean across time (i.e. per roi)
-    signals_std = np.std(signals, axis=1, ddof=1).reshape(np.shape(signals)[1], 1)  # std across time (i.e. per roi);
+    signals_mean = np.mean(signals, axis=1).reshape(np.shape(signals)[0], 1)  # mean across time (i.e. per roi)
+    signals_std = np.std(signals, axis=1, ddof=1).reshape(np.shape(signals)[0], 1)  # std across time (i.e. per roi);
     # ddof = 1 to have same as matlab's --> std function: normalized by N-1 --> get unbiased variance
     signals_normalized = (signals - signals_mean) / signals_std
     return signals_normalized
