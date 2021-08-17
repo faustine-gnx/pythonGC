@@ -5,7 +5,7 @@ from utils import lag_signals  # , normalisa
 # http://www.scholarpedia.org/article/Granger_causality
 
 
-def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=False):
+def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=False):
     """ Calculate the bivariate Granger causality between each pair of signals.
     cov([...]) --> symmetric square matrix (cov between each pair of elements)
     determinant of cov = generalized variance: measure of multi-dimensional scatter (scalar value) / linked to
@@ -42,7 +42,7 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     # ppf(desired pval, dfn, dfd): Percent point function (inverse of cdf -> percentiles) --> for a distribution
     # function we calculate the probability that the variable is LESS than or equal to x for a given x
 
-    # signals = signal.detrend(signals)  # removes the linear trend from each signal: makes the data stationary
+    signals = signal.detrend(signals)  # removes the linear trend from each signal: makes the data stationary
     # signals = normalisa(signals)  # Matlab normalisa: mean=0, std=1 for each ROI
     # normalization is useless: it does not change GC nor Fstat results
     # detrend --> slightly different GC & Fstat
@@ -60,19 +60,22 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
         for j, y in enumerate(signals):
             if i != j:
                 y_lagged = signals_lagged[j]
-                y_t = y_lagged[:, -1].reshape((len(y_lagged), 1))   # current value of signal y (lagged)
+                y_t = y_lagged[:, -1].reshape((len(y_lagged), 1))  # current value of signal y (lagged)
                 y_tau = y_lagged[:, :-1]  # past of signal y (lagged)
                 xtau_ytau = np.concatenate((x_tau, y_tau), axis=1)  # both past concatenated
                 ytau_yt = np.concatenate((y_tau, y_t), axis=1)  # y's past and current value --> reduced model
                 xtau_ytau_yt = np.concatenate((xtau_ytau, y_t), axis=1)  # full model
+
+                small = min(i, j)
+                large = max(i, j)
+                z_indices = np.r_[0:small, small + 1:large, large + 1:n_rois]
+                z_lagged = signals_lagged[z_indices]
 
                 # Numpy cov input matrix: each row of m represents a variable, and each column a single observation
                 # Matlab cov input matrix: each row is an observation, and each column a variable
 
                 reduced_model = np.linalg.det(np.cov(ytau_yt.T)) / np.linalg.det(np.cov(y_tau.T))
                 full_model = np.linalg.det(np.cov(xtau_ytau_yt.T)) / np.linalg.det(np.cov(xtau_ytau.T))
-                # FRITES: compute entropy using the slogdet in numpy rather than np.linalg.det
-                #         nb: the entropy is the logdet ***
 
                 GC_xy =  0.5 * np.log(reduced_model / full_model)  # GC value
                 GC[i, j] = GC_xy
@@ -93,3 +96,24 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
 
     return GC_sig, GC, Fstat, threshold_F
 
+
+
+def entr(xy):
+    """Entropy of a gaussian variable.
+    This function computes the entropy of a gaussian variable for a 2D input.
+    """
+    # manually compute the covariance (faster)
+    n_r, n_c = xy.shape
+    xy = xy - xy.mean(axis=1, keepdims=True)
+    out = np.empty((n_r, n_r), xy.dtype, order='C')
+    np.dot(xy, xy.T, out=out)
+    out /= (n_c - 1)
+    # compute entropy using the slogdet in numpy rather than np.linalg.det
+    # nb: the entropy is the logdet
+    (sign, h) = np.linalg.slogdet(out)
+    if not sign > 0:
+        raise ValueError(f"Can't estimate the entropy properly of the input "
+                         f"matrix of shape {xy.shape}. Try to increase the "
+                         "step")
+
+    return h
