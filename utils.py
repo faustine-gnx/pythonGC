@@ -15,7 +15,7 @@ import numpy as np
 
 
 def lag_signals(signals, n_lags, tau=1):
-    """ Create matrix of lagged data sequence signal. Creates a matrix of dimension n_lags and tau lags.
+    """ Create matrix of lagged data sequence signal (lag embedding). Creates a matrix of dimension n_lags and tau lags.
     :param signals: matrix of the signals to be embedded
     :param n_lags: embedding dimension = np.shape(embedded_signal, 2)
     :param tau: number of lags for the embedding (keep tau=1 for GC)

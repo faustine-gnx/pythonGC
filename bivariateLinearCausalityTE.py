@@ -15,6 +15,9 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     see slide 32 of GC presentation
     Fstat ~ F(n_lags, n_timesteps - 2*n_lags)
 
+    Numpy cov input matrix: each row of m represents a variable, and each column a single observation
+    Matlab cov input matrix: each row is an observation, and each column a variable
+
     :param signals: variables in rows and observations in columns --> shape = n_rois x n_timesteps (/!\ Matlab opposite)
     :param n_lags: number of past time steps to include in model (order)
     :param pval: significance level for the F test. The lower it is, the higher threshold_F (does not change GC)
@@ -55,31 +58,29 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
 
     for i, x in enumerate(signals):  # for each column (each roi)
         x_lagged = signals_lagged[i]
-        x_tau = x_lagged[:, :-1]  # past of signal x (lagged)
+        x_past = x_lagged[:, :-1]  # past of signal x (lagged)
 
         for j, y in enumerate(signals):
             if i != j:
                 y_lagged = signals_lagged[j]
-                y_t = y_lagged[:, -1].reshape((len(y_lagged), 1))   # current value of signal y (lagged)
-                y_tau = y_lagged[:, :-1]  # past of signal y (lagged)
-                xtau_ytau = np.concatenate((x_tau, y_tau), axis=1)  # both past concatenated
-                ytau_yt = np.concatenate((y_tau, y_t), axis=1)  # y's past and current value --> reduced model
-                xtau_ytau_yt = np.concatenate((xtau_ytau, y_t), axis=1)  # full model
+                y_present = np.expand_dims(y_lagged[:, -1], axis=1)  # current value of signal y (lagged)
+                y_past = y_lagged[:, :-1]  # past of signal y (lagged)
+                xy_past = np.concatenate((x_past, y_past), axis=1)  # both past concatenated
+                reduced_model = np.concatenate((y_past, y_present), axis=1)  # y's past and current value
+                full_model = np.concatenate((xy_past, y_present), axis=1)  # x and y's past and current y value
 
-                # Numpy cov input matrix: each row of m represents a variable, and each column a single observation
-                # Matlab cov input matrix: each row is an observation, and each column a variable
-
-                reduced_model = np.linalg.det(np.cov(ytau_yt.T)) / np.linalg.det(np.cov(y_tau.T))
-                full_model = np.linalg.det(np.cov(xtau_ytau_yt.T)) / np.linalg.det(np.cov(xtau_ytau.T))
+                # Covariances
+                sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(y_past.T))
+                sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xy_past.T))
                 # FRITES: compute entropy using the slogdet in numpy rather than np.linalg.det
                 #         nb: the entropy is the logdet ***
 
-                GC_xy =  0.5 * np.log(reduced_model / full_model)  # GC value
+                GC_xy =  0.5 * np.log(sigma_reduced / sigma_full)  # GC value
                 GC[i, j] = GC_xy
 
                 # residual sum of squares
-                RSS_reduced = (n_timesteps - n_lags) * reduced_model
-                RSS_full = (n_timesteps - 2*n_lags) * full_model
+                RSS_reduced = (n_timesteps - n_lags) * sigma_reduced
+                RSS_full = (n_timesteps - 2*n_lags) * sigma_full
                 F_xy = (n_timesteps - 2*n_lags) / n_lags * (RSS_reduced - RSS_full) / RSS_full
                 Fstat[i, j] = F_xy
 
