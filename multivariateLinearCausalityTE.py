@@ -68,10 +68,11 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
 
                 small = min(i, j)
                 large = max(i, j)
-                z_indices = np.r_[0:small, small + 1:large, large + 1:n_rois]
+                z_indices = np.r_[0:small, small + 1:large, large + 1:n_rois]  # TODO: check that z present not taken
                 # OR z_indices = [k for k in range(n_rois) if k not in [i, j]]
-                z_lagged = signals_lagged[z_indices]
-                z_past = np.concatenate(z_lagged[:, :, :-1], axis=1)
+                z_lagged = signals_lagged[z_indices]  # TODO: check that z present not taken
+                z_past = np.concatenate(z_lagged[:, :, :-1], axis=1)  # not enough to remove last? remove last = remove
+                                                                      # last of last ROI or remove last of all ROIS??
 
                 yz_past = np.concatenate((y_past, z_past), axis=1)  # past without x
                 xyz_past = np.concatenate((x_past, yz_past), axis=1)  # all past
