@@ -80,16 +80,17 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
                 full_model = np.concatenate((xyz_past, y_present), axis=1)  # x, y, z's past and current y value
 
                 # Covariances
-                sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(y_past.T))
+                sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(yz_past.T))
                 sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xyz_past.T))
 
                 GC_xy =  0.5 * np.log(sigma_reduced / sigma_full)  # GC value
                 GC[i, j] = GC_xy
 
                 # residual sum of squares
-                RSS_reduced = (n_timesteps - n_lags) * sigma_reduced
-                RSS_full = (n_timesteps - 2*n_lags) * sigma_full
-                F_xy = (n_timesteps - 2*n_lags) / n_lags * (RSS_reduced - RSS_full) / RSS_full
+                RSS_reduced = (n_timesteps - (n_rois-1)*n_lags) * sigma_reduced
+                RSS_full = (n_timesteps - n_rois*n_lags) * sigma_full
+
+                F_xy = (n_timesteps - n_rois*n_lags) / ((n_rois-1)*n_lags) * (RSS_reduced - RSS_full) / RSS_full
                 Fstat[i, j] = F_xy
 
                 if F_xy > threshold_F:
