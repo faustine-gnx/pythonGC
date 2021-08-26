@@ -30,7 +30,7 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     :return F_stat: F statistics of the GC test
     :return threshold_F: threshold for significance.
     """
-    (n_rois, n_timesteps) = np.shape(signals)
+    (n_rois, n_timesteps) = signals.shape
     n_pairs = n_rois * (n_rois-1)
     # From Fstat definition: F_gc ~ F(n_lags, n_timesteps - 2*n_lags)
     threshold_F = stats.f.ppf(1 - pval/n_pairs, n_lags, n_timesteps - 2*n_lags)  # statistical threshold

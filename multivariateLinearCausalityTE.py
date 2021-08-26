@@ -30,7 +30,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     :return F_stat: F statistics of the GC test
     :return threshold_F: threshold for significance.
     """
-    (n_rois, n_timesteps) = np.shape(signals)
+    (n_rois, n_timesteps) = signals.shape
     n_pairs = n_rois * (n_rois-1)
     # From Fstat definition: F_gc ~ F(n_lags, n_timesteps - 2*n_lags)
     threshold_F = stats.f.ppf(1 - pval/n_pairs, n_lags, n_timesteps - 2*n_lags)  # statistical threshold
@@ -54,7 +54,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     GC = np.zeros((n_rois, n_rois))  # matrix of all GC_xy
     GC_sig = np.zeros((n_rois, n_rois))  # matrix of all significant GC_xy (if F_xy >= threshold_F)
 
-    signals_lagged = lag_signals(signals, n_lags, tau=1)
+    signals_lagged = lag_signals(signals, n_lags, tau)  # shape: n_rois, n_timesteps-tau*(n_lags-1), n_lags
 
     for i, x in enumerate(signals):  # for each column (each roi)
         x_lagged = signals_lagged[i]
@@ -68,9 +68,9 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
 
                 small = min(i, j)
                 large = max(i, j)
-                z_indices = np.r_[0:small, small + 1:large, large + 1:n_rois]  # TODO: check that z present not taken
+                z_indices = np.r_[0:small, small + 1:large, large + 1:n_rois]
                 # OR z_indices = [k for k in range(n_rois) if k not in [i, j]]
-                z_lagged = signals_lagged[z_indices]  # TODO: check that z present not taken
+                z_lagged = signals_lagged[z_indices]
                 z_past = np.concatenate(z_lagged[:, :, :-1], axis=1)  # not enough to remove last? remove last = remove
                                                                       # last of last ROI or remove last of all ROIS??
 
@@ -83,7 +83,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
                 sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(yz_past.T))
                 sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xyz_past.T))
 
-                GC_xy =  0.5 * np.log(sigma_reduced / sigma_full)  # GC value
+                GC_xy = 0.5 * np.log(sigma_reduced / sigma_full)  # GC value
                 GC[i, j] = GC_xy
 
                 # residual sum of squares
@@ -102,7 +102,6 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
         print("Significant GC values:", GC)
 
     return GC_sig, GC, Fstat, threshold_F
-
 
 
 def entr(xy):
