@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # useless now --> embed once and for all and then retrieve instead of embedding at each for loop
 # def embed(signal, embed_dim, tau=1):
 #     """ Embed data sequence signal. Creates an embedding matrix of dimension embed_dim and tau lags.
@@ -14,20 +15,21 @@ import numpy as np
 #                      for i in range(n_timesteps + tau - embed_dim * tau)])
 
 
-def lag_signals(signals, n_lags, tau=1):
+def lag_signals(signals, emb_dim, tau=1):
     """ Create matrix of lagged data sequence signal (lag embedding). Creates a matrix of dimension n_lags and tau lags.
     :param signals: matrix of the signals to be embedded
-    :param n_lags: embedding dimension = np.shape(embedded_signal, 2)
+    :param emb_dim: embedding dimension (n_lags+1) = np.shape(embedded_signal, 2)
     :param tau: number of lags for the embedding (keep tau=1 for GC)
-    :return signals_lagged: matrix of embedded signals (shape: (n_rois, n_timesteps + tau - n_lags*tau, embed_dim))
+    :return signals_lagged: matrix of embedded signals (shape: (n_rois, n_timesteps + tau - n_lags*tau, n_lags))
     """
     (n_rois, n_timesteps) = np.shape(signals)
-    signals_lagged = np.zeros((n_rois, n_timesteps + tau - n_lags * tau, n_lags))
+    signals_lagged = np.zeros((n_rois, n_timesteps + tau - emb_dim * tau, emb_dim))
 
     for i, x in enumerate(signals):
-        signals_lagged[i] = np.array([x[np.arange(0, n_timesteps, tau)[:n_lags] + i]
-                                        for i in range(n_timesteps + tau - n_lags * tau)])
+        signals_lagged[i] = np.array([x[np.arange(0, n_timesteps, tau)[:emb_dim] + i]
+                                      for i in range(n_timesteps + tau - emb_dim * tau)])
     return signals_lagged
+
 
 def normalisa(signals):
     """ """

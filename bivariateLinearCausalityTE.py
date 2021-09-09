@@ -19,7 +19,7 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     Matlab cov input matrix: each row is an observation, and each column a variable
 
     :param signals: variables in rows and observations in columns --> shape = n_rois x n_timesteps (/!\ Matlab opposite)
-    :param n_lags: number of past time steps to include in model (order)
+    :param n_lags: number of past time steps to include in model (order, must be >= 2)
     :param pval: significance level for the F test. The lower it is, the higher threshold_F (does not change GC)
     :param tau: number of time steps between lags --> keep past values at times: [t-tau*i for i in range(n_lags)]
            (tau=1 for GC: keep all values up to n_lags, don't skip any)
@@ -54,7 +54,7 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     GC = np.zeros((n_rois, n_rois))  # matrix of all GC_xy
     GC_sig = np.zeros((n_rois, n_rois))  # matrix of all significant GC_xy (if F_xy >= threshold_F)
 
-    signals_lagged = lag_signals(signals, n_lags, tau=1)
+    signals_lagged = lag_signals(signals, n_lags+1, tau)  # n_lags+1 --> n_lags + present
 
     for i, x in enumerate(signals):  # for each column (each roi)
         x_lagged = signals_lagged[i]

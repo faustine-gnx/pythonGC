@@ -54,7 +54,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     GC = np.zeros((n_rois, n_rois))  # matrix of all GC_xy
     GC_sig = np.zeros((n_rois, n_rois))  # matrix of all significant GC_xy (if F_xy >= threshold_F)
 
-    signals_lagged = lag_signals(signals, n_lags, tau)  # shape: n_rois, n_timesteps-tau*(n_lags-1), n_lags
+    signals_lagged = lag_signals(signals, n_lags+1, tau)  # shape: n_rois, n_timesteps-tau*(n_lags-1), n_lags
 
     for i, x in enumerate(signals):  # for each column (each roi)
         x_lagged = signals_lagged[i]
@@ -82,6 +82,9 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
                 # Covariances
                 sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(yz_past.T))
                 sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xyz_past.T))
+
+                # @TODO sanity check: eigenvalue spectrum: looks like none is < 1e-2 --> using pseudo-det useless?
+                # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3971884/
 
                 GC_xy = 0.5 * np.log(sigma_reduced / sigma_full)  # GC value
                 GC[i, j] = GC_xy
