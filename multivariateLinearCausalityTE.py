@@ -1,9 +1,8 @@
 import numpy as np
 from scipy import signal, stats
-from utils import lag_signals  # , normalisa
+from utils import entr, lag_signals  # , normalisa
 
 # http://www.scholarpedia.org/article/Granger_causality
-
 
 def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=False):
     """ Calculate the bivariate Granger causality between each pair of signals.
@@ -31,9 +30,9 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     :return threshold_F: threshold for significance.
     """
     (n_rois, n_timesteps) = signals.shape
-    n_pairs = n_rois * (n_rois-1)
+    n_pairs = n_rois * (n_rois - 1)
     # From Fstat definition: F_gc ~ F(n_lags, n_timesteps - 2*n_lags)
-    threshold_F = stats.f.ppf(1 - pval/n_pairs, n_lags, n_timesteps - 2*n_lags)  # statistical threshold
+    threshold_F = stats.f.ppf(1 - pval / n_pairs, n_lags, n_timesteps - 2 * n_lags)  # statistical threshold
     # Bonferroni corrected 1 - pval/n_pairs instead of 1 - pval: n_pairs = number of hypotheses tested,
     # pval = significance level
 
@@ -45,7 +44,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     # ppf(desired pval, dfn, dfd): Percent point function (inverse of cdf -> percentiles) --> for a distribution
     # function we calculate the probability that the variable is LESS than or equal to x for a given x
 
-    signals = signal.detrend(signals)  # removes the linear trend from each signal: makes the data stationary
+    # signals = signal.detrend(signals)  # removes the linear trend from each signal: makes the data stationary
     # signals = normalisa(signals)  # Matlab normalisa: mean=0, std=1 for each ROI
     # normalization is useless: it does not change GC nor Fstat results
     # detrend --> slightly different GC & Fstat
@@ -54,7 +53,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     GC = np.zeros((n_rois, n_rois))  # matrix of all GC_xy
     GC_sig = np.zeros((n_rois, n_rois))  # matrix of all significant GC_xy (if F_xy >= threshold_F)
 
-    signals_lagged = lag_signals(signals, n_lags+1, tau)  # shape: n_rois, n_timesteps-tau*(n_lags-1), n_lags
+    signals_lagged = lag_signals(signals, n_lags, tau)  # shape: n_rois, n_timesteps-tau*(n_lags-1), n_lags
 
     for i, x in enumerate(signals):  # for each column (each roi)
         x_lagged = signals_lagged[i]
@@ -72,7 +71,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
                 # OR z_indices = [k for k in range(n_rois) if k not in [i, j]]
                 z_lagged = signals_lagged[z_indices]
                 z_past = np.concatenate(z_lagged[:, :, :-1], axis=1)  # not enough to remove last? remove last = remove
-                                                                      # last of last ROI or remove last of all ROIS??
+                # last of last ROI or remove last of all ROIS??
 
                 yz_past = np.concatenate((y_past, z_past), axis=1)  # past without x
                 xyz_past = np.concatenate((x_past, yz_past), axis=1)  # all past
@@ -80,20 +79,27 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
                 full_model = np.concatenate((xyz_past, y_present), axis=1)  # x, y, z's past and current y value
 
                 # Covariances
-                sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(yz_past.T))
-                sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xyz_past.T))
+                entr_reduced = entr(reduced_model.T) - entr(yz_past.T)
+                entr_full = entr(full_model.T) - entr(xyz_past.T)
 
-                # @TODO sanity check: eigenvalue spectrum: looks like none is < 1e-2 --> using pseudo-det useless?
-                # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3971884/
+                # FRITES: compute entropy using the slogdet in numpy rather than np.linalg.det
+                #         nb: the entropy is the logdet ***
+                """
+                sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(y_past.T))
+                sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xy_past.T))
+                Because the log is used: subtract instead of dividing
+                """
+                sigma_reduced = np.exp(entr_reduced)
+                sigma_full = np.exp(entr_full)
 
-                GC_xy = 0.5 * np.log(sigma_reduced / sigma_full)  # GC value
+                GC_xy = 0.5 * (entr_reduced - entr_full)  # GC value
                 GC[i, j] = GC_xy
 
                 # residual sum of squares
-                RSS_reduced = (n_timesteps - (n_rois-1)*n_lags) * sigma_reduced
-                RSS_full = (n_timesteps - n_rois*n_lags) * sigma_full
+                RSS_reduced = (n_timesteps - (n_rois - 1) * n_lags) * sigma_reduced
+                RSS_full = (n_timesteps - n_rois * n_lags) * sigma_full
 
-                F_xy = (n_timesteps - n_rois*n_lags) / ((n_rois-1)*n_lags) * (RSS_reduced - RSS_full) / RSS_full
+                F_xy = (n_timesteps - n_rois * n_lags) / ((n_rois - 1) * n_lags) * (RSS_reduced - RSS_full) / RSS_full
                 Fstat[i, j] = F_xy
 
                 if F_xy > threshold_F:
@@ -105,24 +111,3 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
         print("Significant GC values:", GC)
 
     return GC_sig, GC, Fstat, threshold_F
-
-
-def entr(xy):
-    """Entropy of a gaussian variable.
-    This function computes the entropy of a gaussian variable for a 2D input.
-    """
-    # manually compute the covariance (faster)
-    n_r, n_c = xy.shape
-    xy = xy - xy.mean(axis=1, keepdims=True)
-    out = np.empty((n_r, n_r), xy.dtype, order='C')
-    np.dot(xy, xy.T, out=out)
-    out /= (n_c - 1)
-    # compute entropy using the slogdet in numpy rather than np.linalg.det
-    # nb: the entropy is the logdet
-    (sign, h) = np.linalg.slogdet(out)
-    if not sign > 0:
-        raise ValueError(f"Can't estimate the entropy properly of the input "
-                         f"matrix of shape {xy.shape}. Try to increase the "
-                         "step")
-
-    return h

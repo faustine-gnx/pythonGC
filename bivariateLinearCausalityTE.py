@@ -1,9 +1,8 @@
 import numpy as np
 from scipy import signal, stats
-from utils import lag_signals  # , normalisa
+from utils import entr, lag_signals  # , normalisa
 
 # http://www.scholarpedia.org/article/Granger_causality
-
 
 def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=False):
     """ Calculate the bivariate Granger causality between each pair of signals.
@@ -19,7 +18,7 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     Matlab cov input matrix: each row is an observation, and each column a variable
 
     :param signals: variables in rows and observations in columns --> shape = n_rois x n_timesteps (/!\ Matlab opposite)
-    :param n_lags: number of past time steps to include in model (order, must be >= 2)
+    :param n_lags: number of past time steps to include in model (order)
     :param pval: significance level for the F test. The lower it is, the higher threshold_F (does not change GC)
     :param tau: number of time steps between lags --> keep past values at times: [t-tau*i for i in range(n_lags)]
            (tau=1 for GC: keep all values up to n_lags, don't skip any)
@@ -31,9 +30,9 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     :return threshold_F: threshold for significance.
     """
     (n_rois, n_timesteps) = signals.shape
-    n_pairs = n_rois * (n_rois-1)
+    n_pairs = n_rois * (n_rois - 1)
     # From Fstat definition: F_gc ~ F(n_lags, n_timesteps - 2*n_lags)
-    threshold_F = stats.f.ppf(1 - pval/n_pairs, n_lags, n_timesteps - 2*n_lags)  # statistical threshold
+    threshold_F = stats.f.ppf(1 - pval / n_pairs, n_lags, n_timesteps - 2 * n_lags)  # statistical threshold
     # Bonferroni corrected 1 - pval/n_pairs instead of 1 - pval: n_pairs = number of hypotheses tested,
     # pval = significance level
 
@@ -54,7 +53,8 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
     GC = np.zeros((n_rois, n_rois))  # matrix of all GC_xy
     GC_sig = np.zeros((n_rois, n_rois))  # matrix of all significant GC_xy (if F_xy >= threshold_F)
 
-    signals_lagged = lag_signals(signals, n_lags+1, tau)  # n_lags+1 --> n_lags + present
+    signals_lagged = lag_signals(signals, n_lags + 1, tau=1)  # n_lags+1 --> n_lags + present
+    # print(signals_lagged)
 
     for i, x in enumerate(signals):  # for each column (each roi)
         x_lagged = signals_lagged[i]
@@ -70,22 +70,29 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
                 full_model = np.concatenate((xy_past, y_present), axis=1)  # x and y's past and current y value
 
                 # Covariances
-                sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(y_past.T))
-                sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xy_past.T))
+                entr_reduced = entr(reduced_model.T) - entr(y_past.T)
+                entr_full = entr(full_model.T) - entr(xy_past.T)
                 # FRITES: compute entropy using the slogdet in numpy rather than np.linalg.det
                 #         nb: the entropy is the logdet ***
+                """
+                sigma_reduced = np.linalg.det(np.cov(reduced_model.T)) / np.linalg.det(np.cov(y_past.T))
+                sigma_full = np.linalg.det(np.cov(full_model.T)) / np.linalg.det(np.cov(xy_past.T))
+                Because the log is used: subtract instead of dividing
+                """
+                sigma_reduced = np.exp(entr_reduced)
+                sigma_full = np.exp(entr_full)
 
-                GC_xy =  0.5 * np.log(sigma_reduced / sigma_full)  # GC value
+                GC_xy = 0.5 * (entr_reduced - entr_full)  # GC value = 0.5 * np.log(sigma_reduced / sigma_full)
                 GC[i, j] = GC_xy
 
                 # residual sum of squares
                 RSS_reduced = (n_timesteps - n_lags) * sigma_reduced
-                RSS_full = (n_timesteps - 2*n_lags) * sigma_full
-                F_xy = (n_timesteps - 2*n_lags) / n_lags * (RSS_reduced - RSS_full) / RSS_full
+                RSS_full = (n_timesteps - 2 * n_lags) * sigma_full
+                F_xy = (n_timesteps - 2 * n_lags) / n_lags * (RSS_reduced - RSS_full) / RSS_full
                 Fstat[i, j] = F_xy
 
                 if F_xy > threshold_F:
-                    GC_sig[i,j] = GC_xy
+                    GC_sig[i, j] = GC_xy
 
     if verbose:
         print("F statistics:", Fstat)
@@ -93,4 +100,3 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
         print("Significant GC values:", GC)
 
     return GC_sig, GC, Fstat, threshold_F
-

@@ -38,3 +38,23 @@ def normalisa(signals):
     # ddof = 1 to have same as matlab's --> std function: normalized by N-1 --> get unbiased variance
     signals_normalized = (signals - signals_mean) / signals_std
     return signals_normalized
+
+
+def entr(xy):
+    """ Entropy of a gaussian variable.
+    This function computes the entropy of a gaussian variable for a 2D input.
+    """
+    # manually compute the covariance (faster)
+    n_r, n_c = xy.shape
+    xy = xy - xy.mean(axis=1, keepdims=True)
+    out = np.empty((n_r, n_r), xy.dtype, order='C')
+    np.dot(xy, xy.T, out=out)
+    out /= (n_c - 1)
+    # compute entropy using the slogdet in numpy rather than np.linalg.det
+    # nb: the entropy is the logdet
+    (sign, h) = np.linalg.slogdet(out)
+    if not sign > 0:
+        raise ValueError(f"Can't estimate the entropy properly of the input "
+                         f"matrix of shape {xy.shape}. Try to increase the "
+                         "step")
+    return h
