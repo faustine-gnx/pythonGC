@@ -89,6 +89,7 @@ def bivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=Fals
                 RSS_reduced = (n_timesteps - n_lags) * sigma_reduced
                 RSS_full = (n_timesteps - 2 * n_lags) * sigma_full
                 F_xy = (n_timesteps - 2 * n_lags) / n_lags * (RSS_reduced - RSS_full) / RSS_full
+                # F_xy = (n_timesteps - 2 * n_lags - 1) / n_lags * (RSS_reduced - RSS_full) / RSS_full
                 Fstat[i, j] = F_xy
 
                 if F_xy > threshold_F:

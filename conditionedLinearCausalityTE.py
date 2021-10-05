@@ -2,10 +2,9 @@ import numpy as np
 from scipy import signal, stats
 from utils import entr, lag_signals  # , normalisa
 
-# http://www.scholarpedia.org/article/Granger_causality
 
-def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=False):
-    """ Calculate the multivariate Granger causality between each pair of signals.
+def conditionedLinearCausalityTE(signals, Z, n_lags=5, pval=0.01, tau=1, verbose=False):
+    """ Calculate the Granger causality between each pair of signals, conditioned on the signals in Z.
     cov([...]) --> symmetric square matrix (cov between each pair of elements)
     determinant of cov = generalized variance: measure of multi-dimensional scatter (scalar value) / linked to
     differential entropy -->  the determinant is nonzero if and only if the matrix  is invertible, and the linear map
@@ -32,7 +31,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     (n_rois, n_timesteps) = signals.shape
     n_pairs = n_rois * (n_rois - 1)
     # From Fstat definition: F_gc ~ F(n_lags, n_timesteps - 2*n_lags)
-    threshold_F = stats.f.ppf(1 - pval / n_pairs, n_lags, n_timesteps - n_rois * n_lags)  # statistical threshold
+    threshold_F = stats.f.ppf(1 - pval / n_pairs, n_lags, n_timesteps - (2 + len(Z)) * n_lags)  # statistical threshold
     # Bonferroni corrected 1 - pval/n_pairs instead of 1 - pval: n_pairs = number of hypotheses tested,
     # pval = significance level
 
@@ -54,6 +53,7 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
     GC_sig = np.zeros((n_rois, n_rois))  # matrix of all significant GC_xy (if F_xy >= threshold_F)
 
     signals_lagged = lag_signals(signals, n_lags, tau)  # shape: n_rois, n_timesteps-tau*(n_lags-1), n_lags
+    z_lagged = lag_signals(Z, n_lags, tau)
 
     for i, x in enumerate(signals):  # for each column (each roi)
         x_lagged = signals_lagged[i]
@@ -67,9 +67,6 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
 
                 small = min(i, j)
                 large = max(i, j)
-                z_indices = np.r_[0:small, small + 1:large, large + 1:n_rois]
-                # OR z_indices = [k for k in range(n_rois) if k not in [i, j]]
-                z_lagged = signals_lagged[z_indices]
                 z_past = np.concatenate(z_lagged[:, :, :-1], axis=1)
 
                 yz_past = np.concatenate((y_past, z_past), axis=1)  # past without x
@@ -98,8 +95,10 @@ def multivariateLinearCausalityTE(signals, n_lags=5, pval=0.01, tau=1, verbose=F
                 RSS_reduced = (n_timesteps - (n_rois - 1) * n_lags) * sigma_reduced
                 RSS_full = (n_timesteps - n_rois * n_lags) * sigma_full
 
-                # F_xy = (n_timesteps - n_rois * n_lags) / ((n_rois - 1) * n_lags) * (RSS_reduced - RSS_full) / RSS_full
-                F_xy = (n_timesteps - n_rois * n_lags) / n_lags * (RSS_reduced - RSS_full) / RSS_full
+                print('(n_timesteps - n_rois*n_lags) / ((n_rois-1)*n_lags) ',
+                      (n_timesteps - n_rois * n_lags) / ((n_rois - 1) * n_lags))
+
+                F_xy = (n_timesteps - (2 + len(Z)) * n_lags) / ((n_rois - 1) * n_lags) * (RSS_reduced - RSS_full) / RSS_full
                 Fstat[i, j] = F_xy
 
                 if F_xy > threshold_F:
